@@ -78,7 +78,7 @@ The search operates as a **tree over experiments**, not a linear sequence. Each 
 
 ### Operators
 
-**Draft** (primary operator): Change the model's skeleton. New layer types, different conditioning mechanisms, attention, different encoder architectures, multi-head designs, novel training dynamics. Each Draft should be motivated by an architectural hypothesis — explain in the commit message *why* this structure might work, not just *what* you changed.
+**Draft** (primary operator): Change the model's skeleton. New layer types, different conditioning mechanisms, attention, different encoder architectures, multi-head designs, novel training dynamics. See Design budget below for commit message requirements.
 
 **Improve**: Make a targeted change to a kept Draft. Tune it, fix an issue, adjust a hyperparameter that's clearly suboptimal. Use Improve to get the most out of a promising architecture, not to grid-search a boring one.
 
@@ -91,20 +91,6 @@ The ratio should be roughly: **50% Drafts, 40% Improves on promising Drafts, 10%
 A Draft **must add, remove, or structurally modify an `nn.Module` subclass** in `train.py`. If the diff does not touch a class definition that inherits from `nn.Module` (adding a new one, removing one, changing its `forward()` logic or layer composition), it is an Improve, not a Draft — regardless of what the commit message says.
 
 NOT a Draft: changing a hyperparameter, swapping an activation function, adjusting regularization strength, modifying epoch counts, changing optimizer settings. Those are Improves by definition.
-
-### Architectural directions to explore
-
-These are starting points, not an exhaustive list. Be creative.
-
-- **Attention over features**: replace the dense layers with self-attention over the 46 individual features
-- **Temporal attention**: instead of a small LSTM(4) for macro, use attention over the macro time series
-- **Multi-head SDF**: learn K separate SDF weight vectors and aggregate them
-- **Feature interaction layers**: explicit pairwise feature interactions before the dense layers
-- **Deeper/wider with appropriate regularization**: the baseline [64,64] is small — explore larger architectures with compensating regularization strategies
-- **Conditional architecture**: let macro state determine which subnetwork processes individual features
-- **Adversary architecture**: the moment layer is currently minimal — make it more expressive
-- **Separate time-series and cross-sectional processing**: process time-series patterns and cross-sectional rankings separately, then combine
-- **Curriculum training**: train on easy examples first (high-volume stocks), then include harder ones
 
 ### Mandatory ablation rule
 
@@ -144,27 +130,30 @@ LOOP FOREVER:
 3. If branching from a non-HEAD node: `git show <commit_hash>:train.py > train.py`
 4. Modify `train.py`
 5. `git add train.py && git commit -m "description of architectural hypothesis"`
-6. Run on AWS:
+6. Run on AWS (produces no stdout — output goes to remote `run.log` only):
    ```bash
-   bash aws/sync.sh
-   bash aws/run-job.sh train
-   bash aws/download.sh
+   bash aws/sync.sh && bash aws/run-job.sh train && bash aws/download.sh
    ```
    If the instance is unreachable:
    ```bash
    bash aws/launch.sh && bash aws/setup.sh
    ```
-7. Read results — **use `tail -n 15` to capture only the summary block**:
+7. Read results — **only the summary block**:
    ```bash
    tail -n 15 aws/results/run.log
    ```
-   Do NOT read the full training log. Intermediate epoch metrics waste context and provide no decision-relevant information. You only need the `---` summary block.
+   Do NOT read the full training log. Do NOT `cat` or `Read` `run.log`. Intermediate epoch metrics waste context and provide no decision-relevant information. You only need the `---` summary block.
 8. If the summary block is missing: crashed. `tail -n 50 aws/results/run.log`. Fix or move on.
 9. Log to `results.tsv` (do NOT commit results.tsv — leave it untracked)
 10. **Write a one-sentence "what I learned" summary** — not what you tried, but what the result tells you about the problem. Example: "Wider layers increase train_sharpe but valid doesn't follow → capacity alone doesn't help generalization here." This converts raw results into compressed signal for future decisions.
 11. Apply keep criteria:
     - **Kept**: commit stays. Update global best if this surpasses it.
-    - **Discarded**: `git reset --hard HEAD~1`
+    - **Discarded**: undo the experiment commit but keep infrastructure files safe:
+      ```bash
+      git reset --soft HEAD~1 && git checkout HEAD -- train.py
+      ```
+      This removes the commit and restores `train.py` to its pre-experiment state without touching other files.
+      **NEVER use `git reset --hard`** — it destroys non-experiment files (program.md, scripts).
 12. Check the **ablation rule** and **near-miss rule** (above) before choosing your next experiment.
 
 ### Keep criteria
@@ -190,11 +179,9 @@ Pause and write a structured analysis in `notes.md`:
 
 If a run crashes, use your judgment: typo or easy fix → fix and re-run. Fundamentally broken → log "crash" and move on. Architectural experiments crash more often than hyperparameter tweaks — that's expected.
 
-**NEVER STOP**: Do not pause to ask the human. The loop runs until manually interrupted. If you run out of ideas, re-read the architectural directions above, look at notes.md for hints about what the model struggles with, or try combining two ideas that haven't been combined.
+**Do not pause to ask the human.** The loop runs until the 20-discard halt condition (see Node selection) or manual interruption. If you run out of ideas, consult the unexplored directions checklist, re-read notes.md, or try combining two ideas that haven't been combined.
 
 ## Domain knowledge: Asset Pricing with SDF-GAN
-
-This section replaces reading `prepare.py`. Do NOT read `prepare.py` directly — this brief contains everything architecture-relevant. Saves ~20KB of context.
 
 ### The SDF framework
 The Stochastic Discount Factor $M_t = 1 + \sum_i R_{t,i} \cdot w_{t,i}$ prices all assets. The model learns weights $w$ that minimize the moment condition $E[R \cdot M \cdot h] = 0$ for all conditioning instruments $h$.
@@ -243,12 +230,6 @@ The macro conditioning is essential — the same stock features should produce d
 - The LSTM output serves **two roles**: (1) conditioning the FFN with macro state each timestep, and (2) state chaining across train/valid/test splits via h0. Both matter for generalization.
 - The FFN input is 50-dim (46 individual + 4 macro states). Each stock is processed independently — the same shared-weight network maps (features, macro state) → weight. Cross-sectional interaction is implicit through the SDF portfolio sum.
 - The adversary has its own separate LSTM (32 hidden units) — it can learn different macro representations than the generator
-
-### Things to AVOID
-- Removing the 3-phase structure entirely
-- Pure hyperparameter grid search on the baseline architecture
-- Changing the evaluation metric or data preprocessing
-- Spending more than 3 consecutive experiments tuning the same architecture without a structural change
 
 ## Unexplored directions checklist
 

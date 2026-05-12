@@ -27,11 +27,12 @@ esac
 
 echo "=== Running on $PUBLIC_IP ==="
 echo "  Command: $CMD"
-echo "  Output streams live. Also saved to ~/sdfgan/run.log on remote."
+echo "  Output saved to ~/sdfgan/run.log on remote (no live streaming)."
 echo ""
 
-# Reset idle watchdog, run job, reset again after completion
-$SSH "touch /tmp/sdfgan-heartbeat && cd ~/$REMOTE_DIR && $CMD 2>&1 | tee run.log; touch /tmp/sdfgan-heartbeat"
+# Reset idle watchdog, run job, reset again after completion.
+# Output goes to run.log only (not stdout) to avoid flooding the caller's context.
+$SSH "touch /tmp/sdfgan-heartbeat && cd ~/$REMOTE_DIR && $CMD > run.log 2>&1; touch /tmp/sdfgan-heartbeat"
 
 echo ""
 echo "=== Job finished ==="
