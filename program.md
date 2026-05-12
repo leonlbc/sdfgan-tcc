@@ -115,21 +115,24 @@ To branch from a specific commit: `git show <commit_hash>:train.py > train.py`
 LOOP FOREVER:
 
 1. Read `notes.md` if it exists
-2. Choose a category and parent node
-3. If branching from a non-HEAD node: `git show <commit_hash>:train.py > train.py`
-4. Modify `train.py`
-5. `git add train.py && git commit -m "<category>: hypothesis"`
-6. Run on AWS:
+2. **Strategic choice**: Before choosing, write 2 sentences — which category has the highest information value right now, and what specific hypothesis would most update your beliefs about the problem.
+3. Choose a category and parent node
+4. If branching from a non-HEAD node: `git show <commit_hash>:train.py > train.py`
+5. Modify `train.py`
+6. `git add train.py && git commit -m "<category>: hypothesis"`
+7. Run on AWS:
    ```bash
    bash aws/sync.sh && bash aws/run-job.sh train && bash aws/download.sh
    ```
    If the instance is unreachable: `bash aws/launch.sh && bash aws/setup.sh`
-7. Read results — **only the summary block**: `tail -n 15 aws/results/run.log`
+8. Read results — **only the summary block**: `tail -n 15 aws/results/run.log`
    Do NOT read the full training log.
-8. If the summary block is missing: `tail -n 50 aws/results/run.log`. Fix or move on.
-9. Log to `results.tsv`
-10. Write a **one-sentence "what I learned"** — not what you tried, but what the result tells you about the problem.
-11. Apply keep criteria:
+9. If the summary block is missing: `tail -n 50 aws/results/run.log`. Fix or move on.
+10. Log to `results.tsv`
+11. Write **two sentences**:
+    - **What I learned**: not what you tried, but what the result tells you about the problem.
+    - **Category update**: does this result change which categories you expect to be most productive? E.g., "5th structure discard confirms the FFN is not the bottleneck; shifting prior toward compression and dynamics."
+12. Apply keep criteria:
     - **Kept**: commit stays. Update global best if applicable.
     - **Discarded**: tag then undo:
       ```bash
@@ -137,7 +140,7 @@ LOOP FOREVER:
       git reset --soft HEAD~1 && git checkout HEAD -- train.py
       ```
       **NEVER use `git reset --hard`.**
-12. Check ablation, near-miss, and borderline rules before choosing the next experiment.
+13. Check ablation, near-miss, and borderline rules before choosing the next experiment.
 
 ### Reflection (every 10 experiments)
 
@@ -205,39 +208,30 @@ The macro conditioning is essential — same stock features should produce diffe
 
 **Do not run `validate.py`.** OOS evaluation is done by the human after the loop ends.
 
-## Unexplored directions
+## Direction ideas
 
-Mark items `[x]` when attempted, add new ideas as they emerge. Use judgement — do not test sequentially.
+Static seed list — not exhaustive, not ordered.
 
 ### Structure
-- [x] GELU activation *(kept — global best)*
-- [x] FiLM conditioning *(discarded — 0.798)*
-- [x] Multi-head SDF *(discarded — 1.254/1.209)*
-- [x] Residual FFN with bottleneck *(discarded — 0.897)*
-- [x] GLU blocks *(discarded — 1.170)*
-- [ ] Self-attention over the 50 input features
-- [ ] Temporal attention over macro time series (replace or augment LSTM)
-- [ ] Conditional sub-networks: macro state selects which subnetwork processes features
-- [ ] Separate time-series vs cross-sectional paths, then combine
-- [ ] Deeper adversary: add hidden layer(s) to the moment FFN
-- [ ] Feature grouping: process features in semantically meaningful groups
-- [ ] Simpler FFN: [64] single layer or [32,32] — test if baseline is overparameterized
+- Self-attention over the 50 input features
+- Temporal attention over macro time series (replace or augment LSTM)
+- Conditional sub-networks: macro state selects which subnetwork processes features
+- Separate time-series vs cross-sectional paths, then combine
+- Feature grouping: process features in semantically meaningful groups
+- Simpler FFN: [64] single layer or [32,32]
 
 ### Dynamics
-- [ ] Learning rate warmup or cosine annealing
-- [ ] Different phase lengths (longer Phase 1, shorter Phase 3, or vice versa)
-- [ ] Different sub_epoch counts per phase
-- [ ] AdamW with decoupled weight decay
-- [ ] Curriculum training: high-volume stocks first
-- [ ] Residual loss factor > 0 as auxiliary signal
+- Different phase lengths (longer Phase 1, shorter Phase 3, or vice versa)
+- Different sub_epoch counts per phase
+- AdamW with decoupled weight decay
+- Curriculum training: high-volume stocks first
+- Residual loss factor > 0 as auxiliary signal
 
 ### Compression
-- [ ] LSTM hidden 4 → 8 or 16 (widen the macro bottleneck)
-- [ ] GRU instead of LSTM for macro encoder
-- [ ] Input noise tuning on macro or individual features
-- [ ] Sparse stock weights via L1 or top-k selection
+- GRU instead of LSTM for macro encoder
+- Input noise tuning on macro or individual features
+- Sparse stock weights via L1 or top-k selection
 
 ### Composition
-- [ ] Stochastic Weight Averaging across top-K checkpoints
-- [ ] Ensemble averaging over multiple fits (paper uses 9)
-- [ ] Combine best Structure keep with best Dynamics keep
+- Stochastic Weight Averaging across top-K checkpoints
+- Ensemble averaging over multiple fits (paper uses 9)
