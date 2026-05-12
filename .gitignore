@@ -1,0 +1,7 @@
+datasets/
+__pycache__/
+*.pyc
+.venv/
+results.tsv
+notes.md
+*.log

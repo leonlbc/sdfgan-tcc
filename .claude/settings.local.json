@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(python *)",
+      "Bash(grep *)",
+      "Bash(tail *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Read",
+      "Edit",
+      "Write(results.tsv)",
+      "Write(findings.md)",
+      "Write(notes.md)"
+    ]
+  }
+}
