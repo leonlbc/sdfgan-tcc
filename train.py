@@ -382,6 +382,8 @@ def train_sdf_gan(cfg, data):
     # Fresh optimizer — TF1 creates a separate Adam for each training op,
     # so Phase 3 starts with clean momentum/variance buffers.
     opt_model = make_optimizer(model.model_layer.parameters(), cfg)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        opt_model, T_max=cfg.num_epochs_cond, eta_min=1e-5)
 
     t0 = time.time()
     best_valid_sharpe = float('-inf')
@@ -402,6 +404,7 @@ def train_sdf_gan(cfg, data):
             if cfg.max_grad_norm > 0:
                 nn.utils.clip_grad_norm_(model.model_layer.parameters(), cfg.max_grad_norm)
             opt_model.step()
+        scheduler.step()
 
         if epoch > cfg.ignore_epoch:
             res_tr, res_va = eval_splits()
