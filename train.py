@@ -1,4 +1,4 @@
-"""
+﻿"""
 SDF-GAN autoresearch training script. Single-GPU, single-file.
 This is the ONLY file the agent modifies.
 
@@ -6,6 +6,7 @@ Usage: python train.py
 """
 
 import os
+import sys
 import time
 import copy
 from dataclasses import dataclass, field, asdict
@@ -41,11 +42,11 @@ class Config:
     moment_rnn_type:       str  = 'LSTM'
     moment_rnn_hidden:     int  = 32
     moment_rnn_layers:     int  = 1
-    moment_hidden_dims:    list = field(default_factory=lambda: [32])
+    moment_hidden_dims:    list = field(default_factory=list)
     num_moment_conditions: int  = 8
 
     # --- Regularization ---
-    dropout:          float = 0.10
+    dropout:          float = 0.05
     weight_decay_l2:  float = 0.0
     l1_lambda:        float = 0.0
     batch_norm:       bool  = False
@@ -382,8 +383,6 @@ def train_sdf_gan(cfg, data):
     # Fresh optimizer — TF1 creates a separate Adam for each training op,
     # so Phase 3 starts with clean momentum/variance buffers.
     opt_model = make_optimizer(model.model_layer.parameters(), cfg)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        opt_model, T_max=cfg.num_epochs_cond, eta_min=1e-5)
 
     t0 = time.time()
     best_valid_sharpe = float('-inf')
@@ -404,7 +403,6 @@ def train_sdf_gan(cfg, data):
             if cfg.max_grad_norm > 0:
                 nn.utils.clip_grad_norm_(model.model_layer.parameters(), cfg.max_grad_norm)
             opt_model.step()
-        scheduler.step()
 
         if epoch > cfg.ignore_epoch:
             res_tr, res_va = eval_splits()
@@ -438,9 +436,10 @@ cfg = Config()
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    torch.manual_seed(43)
+    seed = int(sys.argv[1]) if len(sys.argv) > 1 else 42
+    torch.manual_seed(seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed(42)
+        torch.cuda.manual_seed(seed)
 
     t_start = time.time()
     data = load_data(weighted_loss=cfg.weighted_loss)
