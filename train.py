@@ -46,7 +46,7 @@ class Config:
     num_moment_conditions: int  = 8
 
     # --- Regularization ---
-    dropout:          float = 0.25
+    dropout:          float = 0.30
     weight_decay_l2:  float = 0.0
     l1_lambda:        float = 0.0
     batch_norm:       bool  = False
