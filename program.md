@@ -80,7 +80,7 @@ Each experiment belongs to exactly one category. Label it in the commit message 
 
 **Follow-up**: Targeted refinement of a kept or near-miss experiment — tune a hyperparameter, adjust a dimension, fix a clearly suboptimal setting. Requires a 1-sentence description.
 
-Aim for roughly: **40% Structure, 20% Dynamics, 15% Compression, 15% Follow-ups, 10% Compositions.** Do not spend more than 3 consecutive experiments in the same category unless actively ablating a failure.
+Allocate across categories based on what the results tell you. No fixed quotas.
 
 ### Rules
 
@@ -90,7 +90,7 @@ Aim for roughly: **40% Structure, 20% Dynamics, 15% Compression, 15% Follow-ups,
 
 **Borderline confirmation**: When a single run produces valid_sharpe within 10% of its parent (above or below), re-run with 2 additional seeds (`torch.manual_seed` 43 and 44). Use the **median** of the 3 runs for the keep/discard decision. Log the median in results.tsv; note the seed range in the description.
 
-**Keep criteria**: An experiment is **kept** if valid_sharpe improved over its parent. Additionally, keep any experiment within 5% of the global best that has a qualitatively different approach — these "diversity keeps" provide material for compositions.
+**Keep criteria**: Run 3 seeds (42, 43, 44) and take the **median** valid_sharpe. An experiment is **kept** if its median valid_sharpe improved over its parent's median. Additionally, keep any experiment within 5% of the global best that has a qualitatively different approach — these "diversity keeps" provide material for compositions.
 
 ### Design budget
 
@@ -104,9 +104,8 @@ All other categories require a 1-sentence hypothesis or description.
 ### Node selection
 
 - **Default**: branch from the **global best** valid_sharpe in the TSV.
-- **Structure experiments**: branch from baseline unless building on a structural innovation from a prior keep.
 - **After 10 consecutive discards**: switch to a different category than the one that produced the last 3 failures.
-- **After 20 consecutive discards with no new keep**: write a structured summary, then stop.
+- **After 20 consecutive discards with no new keep**: write a structured summary to `notes.md`, then stop.
 
 To branch from a specific commit: `git show <commit_hash>:train.py > train.py`
 
@@ -175,7 +174,6 @@ The macro conditioning is essential — same stock features should produce diffe
 **Adversary:**
 - Separate LSTM(178→32): independent macro encoder
 - Single linear layer with tanh: 78-dim input → 8 moment conditions
-- 0 hidden layers (result of 384-config hyperparameter search)
 - Finds the hardest conditioning instruments $h \in [-1, 1]$
 
 **3-phase training (strictly sequential):**
@@ -188,7 +186,6 @@ The macro conditioning is essential — same stock features should produce diffe
 - `valid_sharpe` = mean/std of monthly portfolio returns where returns = `1.0 - SDF[:, 0]`.
 - `evaluate()` chains RNN states across splits: `h_train → h_valid → h_test`. The model must expose `compute_weights_and_sdf(I_macro, I_indiv, R, mask, h0=None)` returning `(w_flat, sdf, rnn_state)`.
 - `residual_loss` = explained variation = `1.0 - MSE_residual / MSE_return`. Diagnostic only.
-- The paper's in-sample SR=2.68 vs test SR=0.75 — substantial overfitting is expected.
 
 ### Data shapes
 - **46 individual features** per stock per month, **178 macro features** per month
@@ -197,41 +194,19 @@ The macro conditioning is essential — same stock features should produce diffe
 - Macro features normalized per-split using train statistics (no lookahead)
 - UNK returns = -99.99, masked out in loss via `loss_weight`
 
-### Key constraints
-- 240 training months is small → models must be expressive enough to learn but can't memorize
+### Properties
+- 240 training months, 60 validation months, 300 test months
 - The model needs SDF **variance** to generate Sharpe (Sharpe = mean/std of 1-SDF)
-- The LSTM output serves two roles: (1) macro conditioning per timestep, and (2) state chaining across splits via h0. Both matter for generalization.
-- Each stock is processed independently — cross-sectional interaction is implicit through the SDF portfolio sum.
+- The LSTM output serves two roles: (1) macro conditioning per timestep, and (2) state chaining across splits via h0
+- Each stock is processed independently — cross-sectional interaction is implicit through the SDF portfolio sum
 - The adversary has its own LSTM (32 units) — it can learn different macro representations than the generator
 
 ### OOS evaluation
 
 **Do not run `validate.py`.** OOS evaluation is done by the human after the loop ends.
 
-## Direction ideas
+## Search stance
 
-Static seed list — not exhaustive, not ordered.
+The paper's architecture is a starting point, not a solved design. Do not assume the current structure (LSTM→tile→FFN), the 3-phase schedule, or the adversary design are near-optimal. The search space includes fundamentally different architectures, training regimes, and loss formulations — not just hyperparameter variations on the existing design.
 
-### Structure
-- Self-attention over the 50 input features
-- Temporal attention over macro time series (replace or augment LSTM)
-- Conditional sub-networks: macro state selects which subnetwork processes features
-- Separate time-series vs cross-sectional paths, then combine
-- Feature grouping: process features in semantically meaningful groups
-- Simpler FFN: [64] single layer or [32,32]
-
-### Dynamics
-- Different phase lengths (longer Phase 1, shorter Phase 3, or vice versa)
-- Different sub_epoch counts per phase
-- AdamW with decoupled weight decay
-- Curriculum training: high-volume stocks first
-- Residual loss factor > 0 as auxiliary signal
-
-### Compression
-- GRU instead of LSTM for macro encoder
-- Input noise tuning on macro or individual features
-- Sparse stock weights via L1 or top-k selection
-
-### Composition
-- Stochastic Weight Averaging across top-K checkpoints
-- Ensemble averaging over multiple fits (paper uses 9)
+Favor high-leverage, structurally bold changes over incremental tuning. A run that fails spectacularly teaches more than a grid-search neighbor that moves valid_sharpe by 2%.
