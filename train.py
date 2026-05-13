@@ -59,7 +59,8 @@ class Config:
     # --- Training schedule ---
     num_epochs_unc:    int   = 256   # Phase 1: unconditional
     num_epochs_moment: int   = 64    # Phase 2: moment update (Chen faithful)
-    num_epochs_cond:   int   = 1024  # Phase 3: conditional
+    num_epochs_cond:   int   = 1024  # Phase 3: conditional (total budget across restarts)
+    num_restarts:      int   = 4     # Phase 3 multi-restart count
     sub_epoch:         int   = 4     # gradient steps per epoch
     learning_rate:     float = 1e-3
     optimizer:         str   = 'Adam'
@@ -283,7 +284,7 @@ def make_optimizer(params, cfg):
 # Training loop (3-phase adversarial)
 # ---------------------------------------------------------------------------
 
-def train_sdf_gan(cfg, data):
+def train_sdf_gan(cfg, data, seed=42):
     """Full 3-phase training. Returns (model, history_dict)."""
     device = data['device']
     model = SDFGAN(cfg).to(device)
@@ -379,50 +380,59 @@ def train_sdf_gan(cfg, data):
     print(f'  Phase 2 done. Best moment loss: {best_moment_loss:.6f}')
 
     # ============================================================
-    # PHASE 3 -- Conditional
-    # Fresh optimizer to match TF1 (each _build_train_op creates a new optimizer).
+    # PHASE 3 -- Conditional (multi-restart)
     # ============================================================
-    print(f'\n=== Phase 3: Conditional ({cfg.num_epochs_cond} epochs) ===')
-    if best_state is not None:
-        model.load_state_dict(best_state)
-
-    # Fresh optimizer — TF1 creates a separate Adam for each training op,
-    # so Phase 3 starts with clean momentum/variance buffers.
-    opt_model = make_optimizer(model.model_layer.parameters(), cfg)
+    epochs_per_restart = cfg.num_epochs_cond // cfg.num_restarts
+    print(f'\n=== Phase 3: Conditional ({cfg.num_restarts} restarts x {epochs_per_restart} epochs) ===')
+    phase2_state = copy.deepcopy(best_state) if best_state is not None else None
 
     t0 = time.time()
     best_valid_sharpe = float('-inf')
 
-    for epoch in range(cfg.num_epochs_cond):
-        model.train()
-        for _ in range(cfg.sub_epoch):
-            opt_model.zero_grad()
-            w_flat, sdf, _ = model.compute_weights_and_sdf(im, ii, r, m)
-            time_mask = (torch.rand(T, 1, device=device) < 0.75).float()
-            sdf_masked = sdf * time_mask + sdf.detach() * (1 - time_mask)
-            with torch.no_grad():
-                h = model.moment_layer(im, ii, m)
-            loss = moment_loss(r, m, sdf_masked, h, lw_train)
-            if cfg.residual_loss_factor > 0:
-                loss = loss + cfg.residual_loss_factor * residual_loss(r, m, w_flat)
-            if cfg.l1_lambda > 0:
-                loss = loss + cfg.l1_lambda * l1_penalty(w_flat)
-            loss.backward()
-            if cfg.max_grad_norm > 0:
-                nn.utils.clip_grad_norm_(model.model_layer.parameters(), cfg.max_grad_norm)
-            opt_model.step()
+    for restart in range(cfg.num_restarts):
+        restart_seed = seed + restart * 1000
+        torch.manual_seed(restart_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(restart_seed)
 
-        if epoch > cfg.ignore_epoch:
-            res_tr, res_va = eval_splits()
-            if res_va['sharpe'] > best_valid_sharpe:
-                best_valid_sharpe = res_va['sharpe']
-                best_state = copy.deepcopy(model.state_dict())
-            if epoch % cfg.print_freq == 0:
-                el = time.time() - t0
-                print(f'  [COND] {epoch:4d}/{cfg.num_epochs_cond}  '
-                      f'loss {res_tr["loss"]:.4f}/{res_va["loss"]:.4f}  '
-                      f'SR {res_tr["sharpe"]:.3f}/{res_va["sharpe"]:.3f}  '
-                      f'[{el:.0f}s]')
+        if phase2_state is not None:
+            model.load_state_dict(phase2_state)
+        opt_model = make_optimizer(model.model_layer.parameters(), cfg)
+
+        print(f'  --- Restart {restart+1}/{cfg.num_restarts} (seed={restart_seed}) ---')
+
+        for epoch in range(epochs_per_restart):
+            model.train()
+            for _ in range(cfg.sub_epoch):
+                opt_model.zero_grad()
+                w_flat, sdf, _ = model.compute_weights_and_sdf(im, ii, r, m)
+                time_mask = (torch.rand(T, 1, device=device) < 0.75).float()
+                sdf_masked = sdf * time_mask + sdf.detach() * (1 - time_mask)
+                with torch.no_grad():
+                    h = model.moment_layer(im, ii, m)
+                loss = moment_loss(r, m, sdf_masked, h, lw_train)
+                if cfg.residual_loss_factor > 0:
+                    loss = loss + cfg.residual_loss_factor * residual_loss(r, m, w_flat)
+                if cfg.l1_lambda > 0:
+                    loss = loss + cfg.l1_lambda * l1_penalty(w_flat)
+                loss.backward()
+                if cfg.max_grad_norm > 0:
+                    nn.utils.clip_grad_norm_(model.model_layer.parameters(), cfg.max_grad_norm)
+                opt_model.step()
+
+            if epoch > cfg.ignore_epoch:
+                res_tr, res_va = eval_splits()
+                if res_va['sharpe'] > best_valid_sharpe:
+                    best_valid_sharpe = res_va['sharpe']
+                    best_state = copy.deepcopy(model.state_dict())
+                if epoch % cfg.print_freq == 0:
+                    el = time.time() - t0
+                    print(f'  [COND] R{restart+1} {epoch:4d}/{epochs_per_restart}  '
+                          f'loss {res_tr["loss"]:.4f}/{res_va["loss"]:.4f}  '
+                          f'SR {res_tr["sharpe"]:.3f}/{res_va["sharpe"]:.3f}  '
+                          f'[{el:.0f}s]')
+
+        print(f'  --- Restart {restart+1} done. Best valid Sharpe so far: {best_valid_sharpe:.4f} ---')
 
     print(f'  Phase 3 done in {time.time()-t0:.0f}s. Best valid Sharpe: {best_valid_sharpe:.4f}')
 
@@ -451,7 +461,7 @@ if __name__ == '__main__':
 
     t_start = time.time()
     data = load_data(weighted_loss=cfg.weighted_loss)
-    model = train_sdf_gan(cfg, data)
+    model = train_sdf_gan(cfg, data, seed=seed)
 
     res_tr, h_tr = evaluate(model, data['train_tensors'], data['lw_train'])
     res_va, _ = evaluate(model, data['valid_tensors'], data['lw_valid'], h0=h_tr)
