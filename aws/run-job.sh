@@ -17,12 +17,14 @@ source "$ENV_FILE"
 SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ubuntu@$PUBLIC_IP"
 
 JOB="${1:-validate}"
+shift 2>/dev/null || true
+EXTRA_ARGS="$*"
 
 # Map shorthand names to commands
 case "$JOB" in
-    validate) CMD="python3 -u validate.py" ;;
-    train)    CMD="python3 -u train.py" ;;
-    *)        CMD="$JOB" ;;
+    validate) CMD="python3 -u validate.py $EXTRA_ARGS" ;;
+    train)    CMD="python3 -u train.py $EXTRA_ARGS" ;;
+    *)        CMD="$JOB $EXTRA_ARGS" ;;
 esac
 
 echo "=== Running on $PUBLIC_IP ==="
