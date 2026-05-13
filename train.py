@@ -245,10 +245,14 @@ class SDFGAN(nn.Module):
     def compute_weights_and_sdf(self, I_macro, I_indiv, R, mask, h0=None):
         """Forward pass -> per-stock weights and per-period SDF."""
         w_flat, rnn_state = self.model_layer(I_macro, I_indiv, mask, h0=h0)
+
+        N_i = mask.sum(dim=1)
+        w_parts = torch.split(w_flat, N_i.tolist())
+        w_flat = torch.cat([p - p.mean() for p in w_parts])
+
         R_flat = R[mask]
         wR = R_flat * w_flat
 
-        N_i = mask.sum(dim=1)
         sdf_parts = torch.split(wR, N_i.tolist())
         sdf = torch.stack([p.sum() for p in sdf_parts]).unsqueeze(1) + 1.0
         return w_flat, sdf, rnn_state
@@ -310,7 +314,9 @@ def train_sdf_gan(cfg, data):
         for _ in range(cfg.sub_epoch):
             opt_model.zero_grad()
             w_flat, sdf, _ = model.compute_weights_and_sdf(im, ii, r, m)
-            loss = moment_loss(r, m, sdf, h_ones, lw_train)
+            time_mask = (torch.rand(T, 1, device=device) < 0.75).float()
+            sdf_masked = sdf * time_mask + sdf.detach() * (1 - time_mask)
+            loss = moment_loss(r, m, sdf_masked, h_ones, lw_train)
             if cfg.residual_loss_factor > 0:
                 loss = loss + cfg.residual_loss_factor * residual_loss(r, m, w_flat)
             if cfg.l1_lambda > 0:
@@ -392,9 +398,11 @@ def train_sdf_gan(cfg, data):
         for _ in range(cfg.sub_epoch):
             opt_model.zero_grad()
             w_flat, sdf, _ = model.compute_weights_and_sdf(im, ii, r, m)
+            time_mask = (torch.rand(T, 1, device=device) < 0.75).float()
+            sdf_masked = sdf * time_mask + sdf.detach() * (1 - time_mask)
             with torch.no_grad():
                 h = model.moment_layer(im, ii, m)
-            loss = moment_loss(r, m, sdf, h, lw_train)
+            loss = moment_loss(r, m, sdf_masked, h, lw_train)
             if cfg.residual_loss_factor > 0:
                 loss = loss + cfg.residual_loss_factor * residual_loss(r, m, w_flat)
             if cfg.l1_lambda > 0:
