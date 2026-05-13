@@ -42,7 +42,7 @@ class Config:
     moment_rnn_type:       str  = 'LSTM'
     moment_rnn_hidden:     int  = 32
     moment_rnn_layers:     int  = 1
-    moment_hidden_dims:    list = field(default_factory=list)
+    moment_hidden_dims:    list = field(default_factory=lambda: [32])
     num_moment_conditions: int  = 8
 
     # --- Regularization ---
