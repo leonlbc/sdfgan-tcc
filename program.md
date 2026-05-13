@@ -88,7 +88,7 @@ Allocate across categories based on what the results tell you. No fixed quotas.
 
 **Near-miss**: Any experiment with valid_sharpe within 15% of its parent must get at least one Follow-up before being abandoned.
 
-**Borderline confirmation**: When a single run produces valid_sharpe within 10% of its parent (above or below), re-run with 2 additional seeds (`torch.manual_seed` 43 and 44). Use the **median** of the 3 runs for the keep/discard decision. Log the median in results.tsv; note the seed range in the description.
+**Borderline confirmation**: When a single run produces valid_sharpe within 10% of its parent (above or below), re-run with 2 additional seeds (`python train.py 43` and `python train.py 44`). Use the **median** of the 3 runs for the keep/discard decision. Log the median in results.tsv; note the seed range in the description.
 
 **Keep criteria**: Run 3 seeds (42, 43, 44) and take the **median** valid_sharpe. An experiment is **kept** if its median valid_sharpe improved over its parent's median. Additionally, keep any experiment within 5% of the global best that has a qualitatively different approach — these "diversity keeps" provide material for compositions.
 
@@ -119,9 +119,10 @@ LOOP FOREVER:
 4. If branching from a non-HEAD node: `git show <commit_hash>:train.py > train.py`
 5. Modify `train.py`
 6. `git add train.py && git commit -m "<category>: hypothesis"`
-7. Run on AWS:
+7. Run on AWS (seed defaults to 42; pass a seed argument for multi-seed runs):
    ```bash
-   bash aws/sync.sh && bash aws/run-job.sh train && bash aws/download.sh
+   bash aws/sync.sh && bash aws/run-job.sh train && bash aws/download.sh       # seed 42
+   bash aws/sync.sh && bash aws/run-job.sh train 43 && bash aws/download.sh    # seed 43
    ```
    If the instance is unreachable: `bash aws/launch.sh && bash aws/setup.sh`
 8. Read results — **only the summary block**: `tail -n 15 aws/results/run.log`
