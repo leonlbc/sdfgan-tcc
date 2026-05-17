@@ -1,0 +1,61 @@
+commit	category	valid_sharpe	train_sharpe	valid_ev	status	description
+3410e04	baseline	1.275681	2.922607	0.002106	keep	SDF-GAN [64,64] LSTM(4) ReLU
+4f978bb	follow-up	1.322333	2.796043	0.003083	keep	GELU activation on baseline
+27a5de6	structure	0.797909	3.312320	0.002629	discard	FiLM conditioning — macro modulates features multiplicatively instead of concat
+b7bf2f4	structure	1.253804	2.104906	0.002695	discard	Multi-head SDF K=4 parallel FFNs with softmax aggregation
+4b95536	follow-up	1.209341	2.279485	0.002711	discard	Multi-head K=2 simple avg (near-miss follow-up)
+5ad1b40	structure	0.897035	2.216790	0.001973	discard	Residual FFN with bottleneck blocks (proj→2 ResBlocks→output)
+d3e0d88	structure	1.170348	2.460571	0.004241	discard	GLU blocks replace Dense+ReLU in generator
+2163428	follow-up	1.045274	2.690464	0.003100	discard	GLU wider 128-dim blocks (near-miss follow-up)
+e16e013	structure	1.193613	3.017954	0.003367	discard	Deeper adversary [64] hidden layer in moment network
+72be420	compression	1.028181	1.934732	0.003398	discard	LSTM hidden=8 (larger macro bottleneck)
+f7baec3	dynamics	1.178219	2.263729	0.003407	discard	Cosine annealing LR 1e-3→1e-5 in Phase 3 (median of seeds 42-44)
+175867f	structure	0.783451	1.735549	0.003048	discard	Simpler [64] single-layer FFN — model needs the depth
+f4eeb33	follow-up	1.317420	1.750272	0.002960	keep	Adversary [32] hidden layer — diversity keep (median seeds 42-44, within 0.4% of best)
+bbe801c	dynamics	1.317690	1.750257	0.002961	discard	AdamW weight_decay=1e-4 — no measurable effect (too small)
+6c4a9e4	dynamics	1.159702	2.364621	0.003649	discard	Phase 1 doubled (256→512) — over-converged unconditional checkpoint
+0abb5ad	follow-up	1.159347	1.866119	0.003070	discard	Phase 1=384 near-miss follow-up (median seeds 42-44, high variance 0.98-1.36)
+b9a78fb	compression	1.234690	1.857099	0.003459	discard	GRU macro encoder — loses info vs LSTM cell state
+6d7188b	dynamics	0.064654	0.192742	0.104025	discard	Residual loss factor=0.1 — dominated moment loss, killed SDF pricing
+28f6cea	dynamics	1.117467	2.179552	0.003794	discard	Gradient clipping max_grad_norm=1.0 — constrains needed exploration
+120b534	dynamics	1.149186	2.061202	0.003753	discard	LR=5e-4 — model needs full 1e-3 learning rate
+a2b9011	structure	1.218540	2.736343	0.003205	discard	K=16 moment conditions — harder game without better SDF
+22f4f16	follow-up	1.071238	2.313822	0.004084	discard	Dropout=0.05 on adversary [32] — adversary benefits from higher dropout
+b267ee1	compression	1.175097	2.190983	0.003819	discard	Adversary LSTM=16 — too weak, median 1.175 (seeds 42-44, var 1.13-1.40)
+c2360af	dynamics	1.281000	1.707406	0.003332	discard	L1 lambda=1e-4 — median 1.281 (seeds 42-44, var 0.998-1.362)
+f53abad	composition	1.069406	1.566902	0.002771	discard	GELU + adv [32] clean (no cosine, dropout=0.05) — keeps don't compose, 1.069
+26d2dc4	structure	0.957145	3.421916	0.003817	discard	Macro-gated feature selection — sigmoid gate from LSTM(4), higher overfitting 3.42 train SR
+57ba0a8	follow-up	1.122761	2.327980	0.003955	discard	Adv [32] + L1=1e-5 — median 1.123 (seeds 42-44, var 1.121-1.315), L1 hurts at any level
+d27fb03	dynamics	1.096977	2.292589	0.003384	discard	Phase 3=512 epochs — median 1.097 (seeds 42-44, var 1.077-1.292), model needs full 1024
+d7e895e	compression	0.775592	2.766848	0.004258	discard	Linear(46→16) feature projection — can't compress 46 features, 0.776
+19848f1	structure	0.598311	2.123382	0.001678	discard	LayerNorm on 50-dim FFN input — destroys scale information, 0.598
+4582b98	follow-up	1.276502	3.312882	0.003648	discard	GELU + dropout=0.10 borderline — median 1.277 (seeds 42-44, var 1.231-1.316)
+8e68646	dynamics	1.203130	1.853417	0.003055	discard	sub_epoch=2 halved gradient budget — less training hurts, 1.203
+1aba01a	dynamics	1.020452	1.242138	0.002262	discard	EMA decay=0.999 in Phase 3 — too aggressive, train SR only 1.24 (underfitting)
+72fd488	dynamics	1.225869	2.888327	0.003187	discard	Feature noise σ=0.02 on individual features — median 1.226 (seeds 42-44, var 1.076-1.316)
+b584948	dynamics	1.067541	2.574561	0.003832	discard	Warm restarts T_0=256 T_mult=2 — median 1.068 (seeds 42-44, var 1.055-1.343)
+1cfdcc7	dynamics	1.182304	2.091120	0.003676	discard	Asymmetric LR LSTM=3e-4 FFN=1e-3 — near-miss median 1.182 (seeds 42-44, var 1.099-1.326)
+c00abb3	follow-up	1.264989	1.960151	0.003051	discard	Asymmetric LR 0.5x LSTM=5e-4 FFN=1e-3 — near-miss follow-up, 1.265
+cd2df54	structure	1.301624	5.414447	0.002949	discard	Cross-sectional weight centering — near-miss median 1.302 (seeds 42-44, var 1.053-1.439), extreme overfit
+4c42971	follow-up	1.267676	5.034487	0.004248	discard	Weight centering + dropout=0.10 — median 1.268 (seeds 42-44, var 1.261-1.529), seed 43 hit 1.529
+0bdc5de	dynamics	1.079766	1.643313	0.002824	discard	Orthogonal init for LSTM weight_hh — worse basin, 1.080
+2f1e352	dynamics	0.000000	0.000000	0.000000	crash	Temporal dropout via lw_train masking — dim mismatch in moment_loss
+9e8f2a3	dynamics	1.309660	2.416071	0.002889	discard	Temporal dropout p=0.75 SDF gradient mask — near-miss median 1.310 (seeds 42-44, var 1.077-1.351)
+560ffa2	follow-up	1.269939	2.746125	0.003059	discard	Temporal dropout p=0.875 — median 1.270 (seeds 42-44, var 1.102-1.344), p=0.75 is better
+c83a7a5	composition	1.318260	2.261652	0.002364	keep	Weight centering + temporal dropout p=0.75 — diversity keep median 1.318 (seeds 42-44, var 1.009-1.499)
+8f99735	dynamics	1.363155	2.778249	0.002760	keep	Multi-restart Phase 3 (4x256) — NEW GLOBAL BEST median 1.363 (seeds 42-44, var 1.081-1.436)
+a45837d	structure	0.787995	1.114738	0.002493	discard	Soft centering alpha 0->1 over Phase 3 — 0.788, model can't transition to full centering
+dd1a2e2	follow-up	1.318856	1.816316	0.003200	discard	Dropout=0.15 on multi-restart — near-miss median 1.319 (seeds 42-44, var 1.255-1.554)
+501c329	follow-up	1.081464	1.881888	0.002662	discard	EMA decay=0.9995 on multi-restart — smoothing still hurts at lightest setting, 1.081
+4a428ce	dynamics	1.263634	2.144461	0.002372	discard	LR warmup 100 epochs in Phase 3 — near-miss median 1.264 (seeds 42-44, var 1.096-1.405)
+8329d2c	dynamics	1.100272	3.401582	0.004214	discard	Adversary unfreezing 1:10 on GELU baseline — median 1.100 (seeds 42-44, var 0.959-1.379), destabilizing
+e1f2ac0	dynamics	1.365544	2.736768	0.002735	discard	Top-5 SWA on multi-restart — median 1.366 (seeds 42-44, var 1.064-1.426), +0.2% noise
+0123174	follow-up	1.421870	2.236806	0.003345	keep	Dropout=0.20 on multi-restart — NEW GLOBAL BEST median 1.422 (seeds 42-44, var 1.279-1.527)
+8fe97db	dynamics	1.374308	1.942659	0.003024	discard	8x128 restarts — near-miss median 1.374 (seeds 42-44, var 1.286-1.559), 128 epochs too short
+0ff5230	follow-up	1.484194	2.130531	0.003166	keep	Dropout=0.25 — NEW GLOBAL BEST median 1.484 (seeds 42-44, var 1.191-1.537)
+fbbfd5d	dynamics	1.001140	1.777100	0.003198	discard	Multi-restart on GELU baseline (no centering) — median 1.001 (seeds 42-44, var 0.894-1.267), multi-restart needs centering
+a003b97	composition	1.083043	1.955101	0.003804	discard	Adversary [32] + centering + multi-restart + dropout=0.25 — 1.083, deeper adversary overwhelms regularized generator
+c05c983	follow-up	1.544405	1.804557	0.003401	keep	Dropout=0.30 — NEW GLOBAL BEST median 1.544 (seeds 42-44, var 1.241-1.637)
+aa8d151	follow-up	1.503583	2.069595	0.003587	discard	Dropout=0.35 — median 1.504 (seeds 42-44, var 1.341-1.584), curve bending past 0.30
+4a3b9e5	follow-up	1.488521	1.651563	0.003435	discard	Dropout=0.40 — 1.489 (seed 42 only), confirms decline past 0.30 peak
+eedd74e	follow-up	1.495364	1.973701	0.003515	discard	Dropout=0.325 — 1.495 (seed 42 only), between 0.30 and 0.35, confirms 0.30 is peak
